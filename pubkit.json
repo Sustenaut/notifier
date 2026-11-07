@@ -1,0 +1,10 @@
+{
+  "kind": "service",
+  "ci": {},
+  "protect": {
+    "checks": [
+      "ci / passed"
+    ],
+    "tags": false
+  }
+}
