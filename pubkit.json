@@ -1,10 +1,51 @@
 {
   "kind": "service",
-  "ci": {},
+  "ci": {
+    "with": {
+      "setup": "make venv",
+      "test": "make functional",
+      "shellcheck": "with-secrets k8s/admin/go-live.sh",
+      "sonar-args": "-Dsonar.sources=src,k8s,Dockerfile -Dsonar.tests=tests"
+    }
+  },
   "protect": {
     "checks": [
-      "ci / passed"
+      "ci / passed",
+      "integrations / scan"
     ],
     "tags": false
+  },
+  "secrets": [
+    {
+      "from": "sustenaut-deploy-ssh-key",
+      "to": "SUSTENAUT_DEPLOY_SSH_KEY",
+      "kind": "secret"
+    },
+    {
+      "from": "TS_GH_OAUTH_CLIENT_ID",
+      "to": "TS_GH_OAUTH_CLIENT_ID",
+      "kind": "secret"
+    },
+    {
+      "from": "TS_GH_OAUTH_SECRET",
+      "to": "TS_GH_OAUTH_SECRET",
+      "kind": "secret"
+    },
+    {
+      "from": "sustenaut-server",
+      "to": "SUSTENAUT_SERVER",
+      "kind": "variable"
+    },
+    {
+      "from": "sustenaut-known-hosts",
+      "to": "SUSTENAUT_KNOWN_HOSTS",
+      "kind": "variable"
+    }
+  ],
+  "variables": {
+    "names": [
+      "NOTIFIER_ROUTES"
+    ],
+    "deploy": "deploy.yml"
   }
 }
