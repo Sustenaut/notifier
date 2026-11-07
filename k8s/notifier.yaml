@@ -1,0 +1,77 @@
+# The notifier, every two minutes: the last day's signals from BigQuery, each start and
+# end posted to Slack once, and what was posted kept in storage. One run at a time, and
+# one that overruns its two minutes is stopped. Its routes are the ConfigMap
+# notifier-settings, which deploy.yml renders from the repository's variable; its
+# BigQuery key and Slack token are the Secret admin/go-live.sh puts in.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: notifier
+spec:
+  schedule: "*/2 * * * *"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 60
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 110
+      ttlSecondsAfterFinished: 3600
+      template:
+        metadata:
+          labels:
+            app: notifier
+        spec:
+          restartPolicy: Never
+          serviceAccountName: app
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            fsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: notifier
+              image: ghcr.io/sustenaut/notifier
+              command: ["notifier", "run"]
+              env:
+                - name: NOTIFIER_STORAGE_URL
+                  value: https://storage.sustenaut.eu
+                - name: NOTIFIER_BIGQUERY_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: notifier-secrets
+                      key: bigquery-key.json
+                - name: NOTIFIER_SLACK_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: notifier-secrets
+                      key: slack-token
+              envFrom:
+                - configMapRef:
+                    name: notifier-settings
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: [ALL]
+              resources:
+                requests:
+                  cpu: 25m
+                  memory: 96Mi
+                limits:
+                  memory: 256Mi
+              volumeMounts:
+                - name: storage-token
+                  mountPath: /var/run/secrets/storage.sustenaut.eu
+                  readOnly: true
+          volumes:
+            - name: storage-token
+              projected:
+                sources:
+                  - serviceAccountToken:
+                      audience: storage.sustenaut.eu
+                      path: token
+                      expirationSeconds: 600

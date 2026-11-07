@@ -1,0 +1,83 @@
+{
+  "uses": [
+    {
+      "plugin": "bitwarden.secrets",
+      "paths": [
+        "with-secrets.json"
+      ],
+      "mode": "required"
+    },
+    {
+      "plugin": "github.ghcr",
+      "paths": [
+        ".github/workflows/deploy.yml",
+        "k8s/notifier.yaml",
+        "k8s/kustomization.yaml"
+      ],
+      "mode": "required"
+    },
+    {
+      "plugin": "github.repo-ops",
+      "paths": [
+        "k8s/admin/go-live.sh"
+      ],
+      "mode": "required"
+    },
+    {
+      "plugin": "slack.post",
+      "paths": [
+        ".github/workflows/deploy.yml",
+        "k8s/admin/go-live.sh",
+        "k8s/notifier.yaml",
+        "src/notifier/cli.py"
+      ],
+      "mode": "required"
+    },
+    {
+      "plugin": "sonarcloud.scan",
+      "paths": [
+        ".github/workflows/main.yml",
+        ".github/workflows/pr.yml"
+      ],
+      "mode": "required"
+    },
+    {
+      "plugin": "storage.api",
+      "paths": [
+        "src/notifier/cli.py",
+        "src/notifier/state.py"
+      ],
+      "mode": "required"
+    },
+    {
+      "plugin": "tailscale.tailnet",
+      "paths": [
+        "pubkit.json"
+      ],
+      "mode": "required"
+    }
+  ],
+  "exclude": [
+    {
+      "path": "tests/steps/test_notify.py",
+      "reason": "Fakes for BigQuery, Slack and storage that the suite runs against"
+    },
+    {
+      "path": "tests/steps/test_state.py",
+      "reason": "A local stand-in for storage's heads and files"
+    },
+    {
+      "path": "tests/steps/test_routes.py",
+      "reason": "Sets a made-up Slack token, to see a run stop before calling anything"
+    }
+  ],
+  "own_hosts": [
+    "sustenaut.eu"
+  ],
+  "other_secrets": [
+    {
+      "name": "SUSTENAUT_DEPLOY_SSH_KEY",
+      "reason": "An SSH key to our own server"
+    }
+  ]
+}

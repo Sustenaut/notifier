@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "notifier"
+version = "0.1.0"
+description = "Posts observability's signals to Slack, once when each opens and once when it ends."
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
+authors = [{ name = "David Schryer", email = "schryer@gmail.com" }]
+# observability brings its BigQuery client, the reader's key, and observability.links for
+# each signal's page; its evaluator extra brings the integrations library (Caller, the
+# Slack and storage clients, and StorageSink for the call log).
+dependencies = [
+  "observability[evaluator] @ https://github.com/Sustenaut/observability/releases/download/v0.1.0/observability-0.1.0-py3-none-any.whl",
+]
+
+[project.urls]
+Repository = "https://github.com/Sustenaut/notifier"
+
+[project.scripts]
+notifier = "notifier.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.coverage.run]
+source = ["notifier"]
+parallel = true
+
+[tool.coverage.report]
+fail_under = 100
+show_missing = true
