@@ -4,7 +4,8 @@
     "with": {
       "setup": "make venv",
       "test": "make functional",
-      "shellcheck": "with-secrets k8s/admin/go-live.sh"
+      "shellcheck": "with-secrets k8s/admin/go-live.sh",
+      "sonar-args": "-Dsonar.sources=src,k8s,Dockerfile -Dsonar.tests=tests"
     }
   },
   "protect": {
