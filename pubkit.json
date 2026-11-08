@@ -47,5 +47,34 @@
       "NOTIFIER_ROUTES"
     ],
     "deploy": "deploy.yml"
+  },
+  "deploy": {
+    "namespace": "notifier",
+    "workflow": "deploy.yml",
+    "gate": "DEPLOY_NOTIFIER",
+    "needs": [
+      {
+        "type": "bitwarden.secret",
+        "name": "notifier-reader-key",
+        "secret": {
+          "name": "notifier-secrets",
+          "key": "bigquery-key.json",
+          "decode": "base64"
+        }
+      },
+      {
+        "type": "bitwarden.secret",
+        "name": "slack-bot-token",
+        "secret": {
+          "name": "notifier-secrets",
+          "key": "slack-token"
+        }
+      },
+      {
+        "type": "upstream",
+        "name": "storage",
+        "health": "https://storage.sustenaut.eu/"
+      }
+    ]
   }
 }
