@@ -119,7 +119,11 @@ buffer, as `k8s:notifier/app`. So it needs no other grant, key or dataset.
   reports as it every two minutes. Observability expects it always on
   (`OBSERVABILITY_SENDERS`), so it is a healthy sender until something pauses it.
 - **The silence test**, `./with-secrets k8s/admin/e2e.sh`, about 20 minutes:
-  1. It posts to the test channel first, which checks that the bot is in it.
+  1. It waits, up to 10 minutes, until the route for `notifier/e2e` is in the settings
+     the notifier runs with and the fake sender is deployed and reporting, so it can
+     run straight after a change to either merges. It says what is missing, and what
+     to run, if they don't arrive. Then it posts to the test channel, which checks that
+     the bot is in it.
   2. It pauses the fake sender, and waits for the notifier to post `sender_silent`'s
      opening for `notifier/e2e`, with its page's link.
   3. It resumes the sender and waits for the end.

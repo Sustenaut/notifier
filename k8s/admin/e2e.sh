@@ -16,6 +16,8 @@
 # made-up calls every two minutes, for --minutes, then deletes it. Observability doesn't
 # expect them, so they make no signal when they stop.
 #
+# It first waits, up to 10 minutes, for the route and the fake sender to be live, so it
+# can run straight after a change to either merges, and says what is missing if not.
 # It needs NOTIFIER_ROUTES to route the subject notifier/e2e to a test channel, the
 # Sustenaut bot in that channel (it posts there first, to check), SLACK_BOT_TOKEN from
 # Bitwarden, gh, and root SSH to the server. It prints no secret.
@@ -54,13 +56,57 @@ if [[ "${1:-}" = load ]]; then
 fi
 
 [[ -n "${SLACK_BOT_TOKEN:-}" ]] || { echo "e2e: SLACK_BOT_TOKEN isn't set: run this through ./with-secrets" >&2; exit 2; }
-channel=$(gh api "repos/$repo/actions/variables/NOTIFIER_ROUTES" -q .value \
-  | jq -r --arg s "$subject" '.subjects[$s] // empty | if type == "object" then .channel else . end')
-[[ -n "$channel" ]] || {
-  echo "e2e: NOTIFIER_ROUTES has no subjects route for $subject: give it a test channel" \
-    "(the owner's state repository), so the test's posts stay out of the others" >&2
-  exit 2
+# What the test needs live, which a change merged a moment ago may not have reached
+# yet: the route in the settings the notifier's CronJob runs with (not only in the
+# repository's variable, which a deploy then renders), and the steady fake sender,
+# deployed, running and reporting. It waits up to 10 minutes for both.
+route_of() { jq -r --arg s "$subject" '.subjects[$s] // empty | if type == "object" then .channel else . end' 2>/dev/null; }
+live_channel() {
+  ssh "root@$server" 'cm=$(k3s kubectl -n notifier get cronjob notifier \
+      -o jsonpath="{.spec.jobTemplate.spec.template.spec.containers[0].envFrom[0].configMapRef.name}" 2>/dev/null) \
+    && k3s kubectl -n notifier get configmap "$cm" -o jsonpath="{.data.NOTIFIER_ROUTES}"' | route_of
 }
+variable_channel() { gh api "repos/$repo/actions/variables/NOTIFIER_ROUTES" -q .value 2>/dev/null | route_of; }
+# The fake sender: "missing", "suspended", "quiet" (no run succeeded in 5 minutes), or "live".
+sender_state() {
+  local found
+  found=$(k "get cronjob fake-sender -o jsonpath='{.spec.suspend} {.status.lastSuccessfulTime}'" 2>/dev/null) \
+    || { echo missing; return; }
+  read -r suspended last <<<"$found"
+  if [[ $suspended = true ]]; then echo suspended
+  elif [[ -z ${last:-} ]] || (( $(date -u +%s) - $(date -u -d "$last" +%s) > 300 )); then echo quiet
+  else echo live; fi
+}
+why_not() {
+  local channel=$1 sender=$2 missing=()
+  if [[ -z $channel ]]; then
+    if [[ -n $(variable_channel) ]]; then
+      missing+=("the notifier's deployed settings have no route for $subject yet, though NOTIFIER_ROUTES does: wait for its deploy (gh run list -R $repo -w deploy.yml), or run gh workflow run deploy.yml -R $repo")
+    else
+      missing+=("NOTIFIER_ROUTES on $repo has no subjects route for $subject: add one to a test channel in release-state's state.json and merge it; its apply sets the variable and redeploys the notifier")
+    fi
+  fi
+  case "$sender" in
+    missing) missing+=("the CronJob fake-sender isn't deployed: merge the notifier change that adds it (k8s/fake-sender.yaml), and let its deploy run") ;;
+    suspended) missing+=("the CronJob fake-sender is suspended, perhaps by a test that was killed: resume it with ssh root@$server \"k3s kubectl -n notifier patch cronjob fake-sender -p '{\\\"spec\\\":{\\\"suspend\\\":false}}'\"") ;;
+    quiet) missing+=("the CronJob fake-sender hasn't completed a run in 5 minutes: see ssh root@$server k3s kubectl -n notifier get jobs") ;;
+  esac
+  printf '%s\n' "${missing[@]}"
+}
+
+echo "0/4 checking that the route and the fake sender are live"
+channel="" sender=""
+for i in $(seq 30); do
+  channel=$(live_channel) sender=$(sender_state)
+  [[ -n $channel && $sender = live ]] && break
+  (( i == 30 )) && break
+  echo "  waiting ($((i * 20))s of 600s): $(why_not "$channel" "$sender" | head -1 | cut -d: -f1)"
+  sleep 20
+done
+if [[ -z $channel || $sender != live ]]; then
+  why_not "$channel" "$sender" | sed 's/^/e2e: /' >&2
+  exit 2
+fi
 
 # The bot's token reaches curl as a header file, never on its command line.
 said=$(curl -sS https://slack.com/api/chat.postMessage -H @<(printf 'Authorization: Bearer %s\n' "$SLACK_BOT_TOKEN") \
