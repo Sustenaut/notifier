@@ -1,4 +1,4 @@
-# Builds the notifier's image on each merge to main, and sends k8s/ to the shared k3s
+# Builds the notifier's image once CI passes on a merge to main, and sends k8s/ to the shared k3s
 # server over SSH and the tailnet, with pubkit's k8s-deploy.yml (pubkit's README,
 # "Deploying a service to k3s"), where the deploy key can only run sustenaut-deploy.
 #
@@ -9,16 +9,19 @@
 name: deploy
 
 on:
-  push: { branches: [main] }
+  # Once CI (main.yml) has passed on a merge to main, never beside it; k8s-deploy's
+  # ready job also waits for the integrations check on that commit.
+  workflow_run: { workflows: [main], types: [completed], branches: [main] }
   workflow_dispatch:
 
 permissions:
+  actions: read
   contents: read
   packages: write
 
 jobs:
   deploy:
-    uses: Sustenaut/pubkit/.github/workflows/k8s-deploy.yml@18e9594780aeace92770d9bab1daf7ab1c8274d1 # v0.30.1
+    uses: Sustenaut/pubkit/.github/workflows/k8s-deploy.yml@10b9de8d505ab41bf00fdcc6c014c12855ef6a5e # v0.31.1
     with:
       image: ghcr.io/sustenaut/notifier
       deploys: k8s notifier DEPLOY_NOTIFIER
