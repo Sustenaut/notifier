@@ -108,6 +108,31 @@ It checks that `NOTIFIER_ROUTES` is set, makes the namespace (the server's
 (`pubkit app-secrets`), turns `DEPLOY_NOTIFIER` on, deploys, and runs it once, printing
 its log. Every step can run again.
 
+## Testing it live
+
+The notifier tests itself against the live services, with nothing taken down, through a
+fake sender: `notifier fake-sender` reports as a sender that exists only to be watched,
+through the same `StorageSink` every real sender writes with, into its own call log
+buffer, as `k8s:notifier/app`. So it needs no other grant, key or dataset.
+
+- **The steady fake sender, `e2e`:** the CronJob `fake-sender` (`k8s/fake-sender.yaml`)
+  reports as it every two minutes. Observability expects it always on
+  (`OBSERVABILITY_SENDERS`), so it is a healthy sender until something pauses it.
+- **The silence test**, `./with-secrets k8s/admin/e2e.sh`, about 20 minutes:
+  1. It posts to the test channel first, which checks that the bot is in it.
+  2. It pauses the fake sender, and waits for the notifier to post `sender_silent`'s
+     opening for `notifier/e2e`, with its page's link.
+  3. It resumes the sender and waits for the end.
+  4. It checks that each was posted once.
+
+  It resumes the sender however it stops. `NOTIFIER_ROUTES` sends the subject
+  `notifier/e2e` to a test channel of its own, so the test stays out of the others.
+- **Load:** `./with-secrets k8s/admin/e2e.sh load --senders 50 --minutes 10 --calls 20`
+  runs a one-off Job of 50 fake senders (`e2e-a`, `e2e-b`, ...). Each reports 20 calls
+  to the made-up plugin `e2e.fake` every two minutes, for 10 minutes, after which the
+  Job is deleted. Observability doesn't expect them, so they make no signal when they
+  stop. Their calls show on the trends page under `e2e.fake`.
+
 ## Working on it
 
 ```sh
