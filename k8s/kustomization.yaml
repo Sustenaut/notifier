@@ -1,4 +1,5 @@
-# The notifier on the shared k3s server, namespace notifier: one CronJob.
+# The notifier on the shared k3s server, namespace notifier: its CronJob, and the
+# steady fake sender its end-to-end test pauses and resumes.
 # Rendered by .github/workflows/deploy.yml, which sets the image it just built and the
 # routes, and applied by sustenaut-deploy on the server.
 apiVersion: kustomize.config.k8s.io/v1beta1
@@ -7,6 +8,7 @@ namespace: notifier
 resources:
   - service-accounts.yaml
   - notifier.yaml
+  - fake-sender.yaml
 images:
   - name: ghcr.io/sustenaut/notifier
     newTag: unset

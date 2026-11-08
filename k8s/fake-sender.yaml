@@ -1,0 +1,64 @@
+# The steady fake sender, e2e, every two minutes: one report to the notifier's call log
+# buffer, as a healthy sender's. Observability expects it always on, so suspending this
+# CronJob makes sender_silent open for notifier/e2e, and resuming it ends the signal:
+# k8s/admin/e2e.sh does that. It needs no secret: only the pod's storage token, as app
+# (k8s:notifier/app), which may write calls-notifier.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: fake-sender
+spec:
+  schedule: "*/2 * * * *"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 60
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 60
+      ttlSecondsAfterFinished: 600
+      template:
+        metadata:
+          labels:
+            app: fake-sender
+        spec:
+          restartPolicy: Never
+          serviceAccountName: app
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            fsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: fake-sender
+              image: ghcr.io/sustenaut/notifier
+              command: ["notifier", "fake-sender"]
+              env:
+                - name: NOTIFIER_STORAGE_URL
+                  value: https://storage.sustenaut.eu
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: [ALL]
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 64Mi
+                limits:
+                  memory: 192Mi
+              volumeMounts:
+                - name: storage-token
+                  mountPath: /var/run/secrets/storage.sustenaut.eu
+                  readOnly: true
+          volumes:
+            - name: storage-token
+              projected:
+                sources:
+                  - serviceAccountToken:
+                      audience: storage.sustenaut.eu
+                      path: token
+                      expirationSeconds: 600

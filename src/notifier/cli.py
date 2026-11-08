@@ -45,7 +45,13 @@ def main(argv: list[str] | None = None, *, transport: Any = None, storage_token:
     p = commands.add_parser("run", help="post what opened and ended since the last run")
     p.add_argument("--now", help="the moment to run at, ISO 8601 (for trying it out)")
     commands.add_parser("routes", help="check NOTIFIER_ROUTES and print where each kind of signal goes")
+    p = commands.add_parser("fake-sender", help="report as made-up senders, for tests (fake.py)")
+    p.add_argument("--senders", type=int, default=1, help="how many: 1 is the steady sender e2e")
+    p.add_argument("--calls", type=int, default=0, help="made-up calls each sender reports per cycle")
+    p.add_argument("--minutes", type=int, default=0, help="report again every two minutes, for this long")
     args = parser.parse_args(argv)
+    if args.command == "fake-sender":
+        return fake_sender(args, transport, storage_token)
     try:
         routes = routing.parse(os.environ.get(routing.VARIABLE, ""))
     except ValueError as error:
@@ -107,7 +113,7 @@ def run(when: str | None, routes: routing.Routes, transport: Any,  # pragma: no 
         if sink is not None:
             sink.flush()
     for channel, text in outcome.posted:
-        print(f"posted to {channel}: {text.splitlines()[0]}")
+        print(f"posted to {channel}: {text.splitlines()[0]} {link_of(text)}")
     for why in outcome.failed:
         print(f"notifier: not posted, tried again next run: {why}", file=sys.stderr)
     if outcome.seeded:
@@ -115,9 +121,35 @@ def run(when: str | None, routes: routing.Routes, transport: Any,  # pragma: no 
     return 1 if outcome.failed else 0
 
 
+def link_of(text: str) -> str:
+    """A post's link, from its last line, `<url|What's behind it>`."""
+    last = text.splitlines()[-1]
+    return last[1:].split("|", 1)[0] if last.startswith("<") and "|" in last else ""
+
+
+def fake_sender(args: argparse.Namespace, transport: Any, storage_token: Any) -> int:
+    from notifier import fake  # noqa: PLC0415
+
+    url = os.environ.get(STORAGE, "")
+    if not url:
+        print(f"notifier: set {STORAGE}", file=sys.stderr)
+        return 2
+    try:
+        lines = fake.run(lambda name: call_log(url, transport, storage_token,
+                                               None if storage_token else Path(TOKEN_FILE), sender=name),
+                         REPO, args.senders, args.calls, args.minutes)
+    except ValueError as error:
+        print(f"notifier: {error}", file=sys.stderr)
+        return 2
+    for line in lines:
+        print(line)
+    return 0
+
+
 def call_log(url: str, transport: Any, storage_token: Any,  # pragma: no cover - the pod's wiring
-             token_file: Path | None):  # noqa: ANN201
-    """The notifier's own calls, to its buffer in storage, as every sender's are."""
+             token_file: Path | None, sender: str = SENDER):  # noqa: ANN201
+    """Calls and reports, to the notifier's buffer in storage, as every sender's are."""
+    from integrations.calls import Network  # noqa: PLC0415
     from integrations.storage_sink import StorageSink  # noqa: PLC0415
 
     def token() -> str:
@@ -125,8 +157,8 @@ def call_log(url: str, transport: Any, storage_token: Any,  # pragma: no cover -
             return storage_token()
         return token_file.read_text(encoding="utf-8").strip()
 
-    return StorageSink({REPO: DATASET}, transport=transport, token=token, base_url=url,
-                       sender=SENDER, start=False)
+    return StorageSink({REPO: DATASET}, transport=transport or Network(), token=token, base_url=url,
+                       sender=sender, start=False)
 
 
 if __name__ == "__main__":  # pragma: no cover
