@@ -18,7 +18,6 @@ other. Nothing else is touched.
 
 from __future__ import annotations
 
-import random
 import string
 import time
 from datetime import datetime, timezone
@@ -55,19 +54,23 @@ def names(senders: int) -> list[str]:
     return out
 
 
-def call(repo: str, now: datetime, n: int, latency: Callable[[], int]) -> CallRecord:
+def call(repo: str, now: datetime, n: int, latency: int) -> CallRecord:
     return CallRecord(at=now.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), repo=repo, app="fake-sender",
                       plugin=PLUGIN, operation="call", request_id=f"fake-{now.timestamp():.0f}-{n}",
-                      latency_ms=latency(), status=200, outcome="ok", retries=0, bytes_in=0, bytes_out=0,
+                      latency_ms=latency, status=200, outcome="ok", retries=0, bytes_in=0, bytes_out=0,
                       mode="advisory", route="none")
 
 
-def report(sinks: dict[str, Sink], repo: str, calls: int, now: datetime,
-           latency: Callable[[], int] = lambda: random.randint(20, 400)) -> int:  # noqa: S311 - not for secrets
+def spread(n: int) -> int:
+    """A made-up call's latency, 20 to 399 ms, spread evenly over a cycle's calls."""
+    return 20 + (n * 137) % 380
+
+
+def report(sinks: dict[str, Sink], repo: str, calls: int, now: datetime) -> int:
     """One cycle: each sender's calls, then its report. Returns the calls written."""
     for sink in sinks.values():
         for n in range(calls):
-            sink.write(call(repo, now, n, latency))
+            sink.write(call(repo, now, n, spread(n)))
         sink.flush()
     return calls * len(sinks)
 

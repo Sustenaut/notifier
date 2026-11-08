@@ -26,10 +26,10 @@ repo=Sustenaut/notifier
 subject=notifier/e2e
 k() { ssh "root@$server" "k3s kubectl -n notifier $*"; }
 
-if [ "${1:-}" = load ]; then
+if [[ "${1:-}" = load ]]; then
   shift
   senders=10 minutes=10 calls=10
-  while [ $# -gt 0 ]; do
+  while [[ $# -gt 0 ]]; do
     case "$1" in
       --senders) senders=$2; shift 2 ;;
       --minutes) minutes=$2; shift 2 ;;
@@ -53,10 +53,10 @@ if [ "${1:-}" = load ]; then
   exit 0
 fi
 
-[ -n "${SLACK_BOT_TOKEN:-}" ] || { echo "e2e: SLACK_BOT_TOKEN isn't set: run this through ./with-secrets" >&2; exit 2; }
+[[ -n "${SLACK_BOT_TOKEN:-}" ]] || { echo "e2e: SLACK_BOT_TOKEN isn't set: run this through ./with-secrets" >&2; exit 2; }
 channel=$(gh api "repos/$repo/actions/variables/NOTIFIER_ROUTES" -q .value \
   | jq -r --arg s "$subject" '.subjects[$s] // empty | if type == "object" then .channel else . end')
-[ -n "$channel" ] || {
+[[ -n "$channel" ]] || {
   echo "e2e: NOTIFIER_ROUTES has no subjects route for $subject: give it a test channel" \
     "(the owner's state repository), so the test's posts stay out of the others" >&2
   exit 2
@@ -66,7 +66,7 @@ channel=$(gh api "repos/$repo/actions/variables/NOTIFIER_ROUTES" -q .value \
 said=$(curl -sS https://slack.com/api/chat.postMessage -H @<(printf 'Authorization: Bearer %s\n' "$SLACK_BOT_TOKEN") \
   --data-urlencode "channel=$channel" \
   --data-urlencode "text=The notifier's end-to-end test is starting: it pauses the fake sender e2e, and expects one post here when $subject goes silent, and one when it reports again.")
-if [ "$(jq -r .ok <<<"$said")" != true ]; then
+if [[ "$(jq -r .ok <<<"$said")" != true ]]; then
   why=$(jq -r .error <<<"$said")
   case "$why" in
     not_in_channel|channel_not_found) echo "e2e: the Sustenaut bot isn't in $channel ($why): invite it there, and run this again" >&2 ;;
@@ -95,7 +95,7 @@ wait_for() {
   local what=$1 minutes=$2
   for _ in $(seq $((minutes * 2))); do
     collect
-    [ "$(count "$what")" -ge 1 ] && return 0
+    [[ "$(count "$what")" -ge 1 ]] && return 0
     sleep 30
   done
   echo "e2e: no post with \"$what\" for $subject in $minutes minutes" >&2
@@ -117,6 +117,6 @@ echo "  $(cut -f2- "$seen" | grep -- "ended" | head -1)"
 echo "4/4 two more runs, to see that neither is posted again"
 for _ in 1 2 3 4 5 6 7 8 9 10; do collect; sleep 30; done
 opened=$(count "since") ended=$(count "ended")
-[ "$opened" = 1 ] && [ "$ended" = 1 ] \
+[[ "$opened" = 1 && "$ended" = 1 ]] \
   || { echo "e2e: posted $opened openings and $ended ends for $subject, not one each" >&2; exit 1; }
 echo "e2e: passed: one post when $subject went silent, with its link, and one when it reported again"
