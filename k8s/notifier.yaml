@@ -2,7 +2,8 @@
 # end posted to Slack once, and what was posted kept in storage. One run at a time, and
 # one that overruns its two minutes is stopped. Its routes are the ConfigMap
 # notifier-settings, which deploy.yml renders from the repository's variable; its
-# BigQuery key and Slack token are the Secret admin/go-live.sh puts in.
+# BigQuery key and Slack token are the Secret notifier-secrets, which the deploy walk
+# puts in.
 apiVersion: batch/v1
 kind: CronJob
 metadata:

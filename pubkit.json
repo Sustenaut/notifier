@@ -4,7 +4,7 @@
     "with": {
       "setup": "make venv",
       "test": "make functional",
-      "shellcheck": "with-secrets k8s/admin/go-live.sh k8s/admin/e2e.sh",
+      "shellcheck": "with-secrets k8s/admin/e2e.sh",
       "sonar-args": "-Dsonar.sources=src,k8s,Dockerfile -Dsonar.tests=tests"
     }
   },
@@ -54,8 +54,10 @@
     "gate": "DEPLOY_NOTIFIER",
     "needs": [
       {
-        "type": "bitwarden.secret",
-        "name": "notifier-reader-key",
+        "type": "gcp.service-account-key",
+        "account": "notifier-reader",
+        "project": "sustenaut",
+        "bitwarden": "notifier-reader-key",
         "secret": {
           "name": "notifier-secrets",
           "key": "bigquery-key.json",
@@ -74,6 +76,72 @@
         "type": "upstream",
         "name": "storage",
         "health": "https://storage.sustenaut.eu/"
+      },
+      {
+        "type": "storage.tenant",
+        "name": "notifier",
+        "storage": "Sustenaut/storage",
+        "url": "https://storage.sustenaut.eu",
+        "read": [
+          "k8s:notifier/app"
+        ],
+        "write": [
+          "k8s:notifier/app"
+        ],
+        "private": true,
+        "heads": true
+      },
+      {
+        "type": "storage.tenant",
+        "name": "calls-notifier",
+        "storage": "Sustenaut/storage",
+        "url": "https://storage.sustenaut.eu",
+        "write": [
+          "k8s:notifier/app"
+        ],
+        "private": true,
+        "inbox": true
+      },
+      {
+        "type": "github.variable-entry",
+        "repository": "Sustenaut/notifier",
+        "variable": "NOTIFIER_ROUTES",
+        "path": "/default"
+      },
+      {
+        "type": "github.variable-entry",
+        "repository": "Sustenaut/notifier",
+        "variable": "NOTIFIER_ROUTES",
+        "path": "/subjects/notifier~1e2e"
+      },
+      {
+        "type": "github.variable-entry",
+        "repository": "Sustenaut/integrations",
+        "variable": "INGEST_DATASETS",
+        "path": "/notifier",
+        "value": "calls_notifier"
+      },
+      {
+        "type": "github.variable-entry",
+        "repository": "Sustenaut/observability",
+        "variable": "OBSERVABILITY_SENDERS",
+        "path": "/notifier/notifier",
+        "value": "always"
+      },
+      {
+        "type": "github.variable-entry",
+        "repository": "Sustenaut/observability",
+        "variable": "OBSERVABILITY_SENDERS",
+        "path": "/notifier/e2e",
+        "value": "always"
+      },
+      {
+        "type": "k8s.cronjob",
+        "name": "notifier"
+      },
+      {
+        "type": "k8s.cronjob",
+        "name": "fake-sender"
       }
     ]
   }
