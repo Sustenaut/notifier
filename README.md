@@ -65,7 +65,7 @@ Where each signal goes is the repository variable `NOTIFIER_ROUTES`, a JSON obje
 
 Subjects name consumers, so the value isn't kept here: `pubkit.json`'s `variables` block
 declares the name, and the owner's state repository keeps the value and sets it
-(`pubkit variables --apply`). `notifier routes` checks it and prints each route:
+(`pubfleet variables --apply`). `notifier routes` checks it and prints each route:
 
 ```sh
 NOTIFIER_ROUTES='{"default": "C0123"}' PYTHONPATH=src python3 -m notifier routes
@@ -100,7 +100,7 @@ this repository with Sustenaut/shared-infra checked out beside it, on a machine 
 admin tailnet, signed in to `gh` and `gcloud`:
 
 ```sh
-./with-secrets ./pubkit deploy walk --fulfil --server sustenaut --zones ../shared-infra/pubkit.json
+./with-secrets ./pubdeploy walk --fulfil --server sustenaut --zones ../shared-infra/pubkit.json
 ```
 
 It checks every need, prints the plan, and waits for a typed `yes`; then it makes each
@@ -112,7 +112,7 @@ Every run can run again: what is ready is left alone. In order:
 | the namespace `notifier` | the server's `sustenaut-app`, which makes it and its deploy identity |
 | `gcp.service-account-key` | a new key of `notifier-reader` (Terraform's, in shared-infra), written to Bitwarden as `notifier-reader-key`, then put in the Secret `notifier-secrets` as `bigquery-key.json`. A key that is no longer one of the account's live keys is drift, and a new one is made |
 | `bitwarden.secret` | `slack-bot-token`, the Sustenaut bot's, read from Bitwarden and put in the same Secret as `slack-token` |
-| the repository's secrets and deploy settings | from Bitwarden, as `pubkit app-secrets` sends them |
+| the repository's secrets and deploy settings | from Bitwarden, as `pubsec app-secrets` sends them |
 | `DEPLOY_NOTIFIER` and the rollout | the gate on, once everything before it is ready, and `deploy.yml` run and waited for |
 | `k8s.cronjob` | the CronJobs `notifier` and `fake-sender` succeeded within two runs; one that hasn't, a Job from it, waited for |
 
@@ -127,14 +127,14 @@ Some needs it only checks, and says what a person does:
   inbox), its call log buffer, which it writes. When one is missing, the fix is the entry
   to add there.
 - **The entries in other repositories' variables**, kept in the owner's state file and set
-  with `pubkit variables --apply`: integrations' `INGEST_DATASETS` loads `notifier` into
+  with `pubfleet variables --apply`: integrations' `INGEST_DATASETS` loads `notifier` into
   `calls_notifier`, and observability's `OBSERVABILITY_SENDERS` expects `notifier/notifier`
   and `notifier/e2e` always on. `NOTIFIER_ROUTES` must be set, with a `default` route and
   one for the subject `notifier/e2e` (for the silence test below).
 - **storage itself** (`upstream`).
 
-`./pubkit deploy walk` without `--fulfil` (or `deploy check`) changes nothing, and
-`./pubkit deploy walk --offline` checks only the files. `.github/workflows/deploy-check.yml`
+`./pubdeploy walk` without `--fulfil` (or `pubdeploy check`) changes nothing, and
+`./pubdeploy walk --offline` checks only the files. `.github/workflows/deploy-check.yml`
 walks it every 30 minutes, read-only, with the deploy key, and writes the walk to
 storage's `plane` tenant; it fails when a need is missing, drift or blocked.
 
