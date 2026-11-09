@@ -4,8 +4,8 @@
 #
 # Where signals go is the repository variable NOTIFIER_ROUTES, which pubkit.json
 # declares and the owner's state repository keeps, so nothing here names a channel or
-# a consumer. It deploys only once DEPLOY_NOTIFIER is "on", which k8s/admin/go-live.sh
-# sets after making the namespace and its Secret.
+# a consumer. It deploys only once DEPLOY_NOTIFIER is "on", which the deploy walk sets
+# once every need before it is ready.
 name: deploy
 
 on:
@@ -21,7 +21,7 @@ permissions:
 
 jobs:
   deploy:
-    uses: Sustenaut/pubkit/.github/workflows/k8s-deploy.yml@10b9de8d505ab41bf00fdcc6c014c12855ef6a5e # v0.31.1
+    uses: Sustenaut/pubkit/.github/workflows/k8s-deploy.yml@01c2711869ce046ec875edee83e575b955cfbabf # v0.31.3
     with:
       image: ghcr.io/sustenaut/notifier
       deploys: k8s notifier DEPLOY_NOTIFIER

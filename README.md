@@ -91,22 +91,52 @@ The pod reads storage with its projected service-account token,
 `k8s-deploy.yml`, once `DEPLOY_NOTIFIER` is `on`. The routes become the ConfigMap
 `notifier-settings`.
 
-What it needs elsewhere, already in place: shared-infra's `notifier-reader` account and
-`calls_notifier` dataset (`infra/notifier.tf`, `infra/call_log.tf`), and storage's
-`notifier` and `calls-notifier` tenants.
-
-To take it live, or bring it back in step, from this repository's root on a machine on
-the admin tailnet:
+What it needs elsewhere: shared-infra's `notifier-reader` account and `calls_notifier`
+dataset (`infra/notifier.tf`, `infra/call_log.tf`), storage's `notifier` and
+`calls-notifier` tenants, and its entries in other repositories' variables. pubkit.json's
+`deploy` block lists them with everything else it needs, and pubkit's deploy walk checks
+each and makes what it can. To take it live, or bring it back in step, from a checkout of
+this repository with Sustenaut/shared-infra checked out beside it, on a machine on the
+admin tailnet, signed in to `gh` and `gcloud`:
 
 ```sh
-./with-secrets k8s/admin/go-live.sh
+./with-secrets ./pubkit deploy walk --fulfil --server sustenaut --zones ../shared-infra/pubkit.json
 ```
 
-It checks that `NOTIFIER_ROUTES` is set, makes the namespace (the server's
-`sustenaut-app`), puts `notifier-reader-key` and `slack-bot-token` in as the Secret
-`notifier-secrets`, sends the repository's deploy settings from Bitwarden
-(`pubkit app-secrets`), turns `DEPLOY_NOTIFIER` on, deploys, and runs it once, printing
-its log. Every step can run again.
+It checks every need, prints the plan, and waits for a typed `yes`; then it makes each
+missing need it can, over the admin channel (`ssh root@sustenaut`), and checks it again.
+Every run can run again: what is ready is left alone. In order:
+
+| Need | What the walk does |
+|---|---|
+| the namespace `notifier` | the server's `sustenaut-app`, which makes it and its deploy identity |
+| `gcp.service-account-key` | a new key of `notifier-reader` (Terraform's, in shared-infra), written to Bitwarden as `notifier-reader-key`, then put in the Secret `notifier-secrets` as `bigquery-key.json`. A key that is no longer one of the account's live keys is drift, and a new one is made |
+| `bitwarden.secret` | `slack-bot-token`, the Sustenaut bot's, read from Bitwarden and put in the same Secret as `slack-token` |
+| the repository's secrets and deploy settings | from Bitwarden, as `pubkit app-secrets` sends them |
+| `DEPLOY_NOTIFIER` and the rollout | the gate on, once everything before it is ready, and `deploy.yml` run and waited for |
+| `k8s.cronjob` | the CronJobs `notifier` and `fake-sender` succeeded within two runs; one that hasn't, a Job from it, waited for |
+
+A new key wants a Bitwarden token that may write: the walk asks for it once, at a hidden
+prompt, and keeps it only in its process. The first run after a deploy posts nothing old:
+it remembers what is there and says it has started.
+
+Some needs it only checks, and says what a person does:
+
+- **storage's tenants** in Sustenaut/storage's `tenants.json`: `notifier` (private, with
+  heads), which `k8s:notifier/app` reads and writes, and `calls-notifier` (private, an
+  inbox), its call log buffer, which it writes. When one is missing, the fix is the entry
+  to add there.
+- **The entries in other repositories' variables**, kept in the owner's state file and set
+  with `pubkit variables --apply`: integrations' `INGEST_DATASETS` loads `notifier` into
+  `calls_notifier`, and observability's `OBSERVABILITY_SENDERS` expects `notifier/notifier`
+  and `notifier/e2e` always on. `NOTIFIER_ROUTES` must be set, with a `default` route and
+  one for the subject `notifier/e2e` (for the silence test below).
+- **storage itself** (`upstream`).
+
+`./pubkit deploy walk` without `--fulfil` (or `deploy check`) changes nothing, and
+`./pubkit deploy walk --offline` checks only the files. `.github/workflows/deploy-check.yml`
+walks it every 30 minutes, read-only, with the deploy key, and writes the walk to
+storage's `plane` tenant; it fails when a need is missing, drift or blocked.
 
 ## Testing it live
 
