@@ -39,9 +39,21 @@ Feature: Where signals go
     Then it fails with 2
     And it says "set NOTIFIER_STORAGE_URL and NOTIFIER_SLACK_TOKEN"
 
-  Scenario: A run with a key that isn't one stops too
+  Scenario Outline: A run whose Google credential file isn't one stops too
     Given NOTIFIER_ROUTES is '{"default": "C1"}'
-    And the run's settings are there, but its key is "not a key"
+    And the run's settings are there, but its credential file <file>
     When I run notifier "run"
     Then it fails with 2
-    And it says "NOTIFIER_BIGQUERY_KEY is not a service account's key"
+    And it says "<words>"
+
+    Examples:
+      | file                  | words                                                                                       |
+      | is not set            | no credential: set NOTIFIER_GOOGLE_CREDENTIAL_FILE                                          |
+      | is not there          | NOTIFIER_GOOGLE_CREDENTIAL_FILE is not a readable JSON file                                 |
+      | holds {"not": "a key"} | NOTIFIER_GOOGLE_CREDENTIAL_FILE is neither an external_account credential nor a service account's key |
+
+  Scenario: The CronJob's token, its credential and the services pool's provider name one audience
+    Given the manifests in k8s
+    Then the credential in google-credential.yaml acts as notifier-reader, audience the provider's
+    And the CronJob runs as app, with no API token, and its projected token has that audience
+    And the token and the credential are where the credential and NOTIFIER_GOOGLE_CREDENTIAL_FILE say

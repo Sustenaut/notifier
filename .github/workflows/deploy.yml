@@ -21,7 +21,7 @@ permissions:
 
 jobs:
   deploy:
-    uses: Sustenaut/pubdeploy/.github/workflows/k8s-deploy.yml@e9b57bdac253b463d28e6e010594ffa7da32dee5 # v0.3.0
+    uses: Sustenaut/pubdeploy/.github/workflows/k8s-deploy.yml@205a99f6c023f1e7dc6156ef2a75389ea55312d0 # v0.4.2
     with:
       image: ghcr.io/sustenaut/notifier
       deploys: k8s notifier DEPLOY_NOTIFIER
