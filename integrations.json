@@ -25,6 +25,13 @@
       "mode": "required"
     },
     {
+      "plugin": "google.cloud",
+      "paths": [
+        "k8s/google-credential.yaml"
+      ],
+      "mode": "required"
+    },
+    {
       "plugin": "slack.post",
       "paths": [
         ".github/workflows/deploy.yml",

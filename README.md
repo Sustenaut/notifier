@@ -76,7 +76,7 @@ NOTIFIER_ROUTES='{"default": "C0123"}' PYTHONPATH=src python3 -m notifier routes
 | Variable | What |
 |---|---|
 | `NOTIFIER_ROUTES` | where signals go (above) |
-| `NOTIFIER_BIGQUERY_KEY` | `notifier-reader`'s key: its JSON, or that JSON in base64 |
+| `NOTIFIER_GOOGLE_CREDENTIAL_FILE` | the Google credential's file: in the cluster `k8s/google-credential.yaml`'s external_account credential, so the CronJob reads BigQuery as `notifier-reader` through Workload Identity with no key; a key's file works too |
 | `NOTIFIER_SLACK_TOKEN` | the Sustenaut bot's token |
 | `NOTIFIER_STORAGE_URL` | storage's address |
 | `NOTIFIER_SITE` | where signals' pages are (optional; `https://observability.sustenaut.eu`) |
@@ -110,7 +110,7 @@ Every run can run again: what is ready is left alone. In order:
 | Need | What the walk does |
 |---|---|
 | the namespace `notifier` | the server's `sustenaut-app`, which makes it and its deploy identity |
-| `gcp.service-account-key` | a new key of `notifier-reader` (Terraform's, in shared-infra), written to Bitwarden as `notifier-reader-key`, then put in the Secret `notifier-secrets` as `bigquery-key.json`. A key that is no longer one of the account's live keys is drift, and a new one is made |
+| `gcp.workload-identity` `app` | that the CronJob's ServiceAccount may act as `notifier-reader` (Terraform's, in shared-infra) through the `services` Workload Identity pool, so it reads BigQuery with no key; the grant is Terraform's (`infra/services-identity.tf`) and only proposed |
 | `bitwarden.secret` | `slack-bot-token`, the Sustenaut bot's, read from Bitwarden and put in the same Secret as `slack-token` |
 | the repository's secrets and deploy settings | from Bitwarden, as `pubsec app-secrets` sends them |
 | `DEPLOY_NOTIFIER` and the rollout | the gate on, once everything before it is ready, and `deploy.yml` run and waited for |

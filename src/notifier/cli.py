@@ -5,7 +5,7 @@ Its settings are the environment:
 | Variable | What |
 |---|---|
 | `NOTIFIER_ROUTES` | where signals go (routes.py) |
-| `NOTIFIER_BIGQUERY_KEY` | notifier-reader's key: its JSON, or that JSON in base64 |
+| `NOTIFIER_GOOGLE_CREDENTIAL_FILE` | the Google credential's file: in the cluster, k8s/google-credential.yaml's external_account credential (notifier-reader through Workload Identity, no key); a key's file works too |
 | `NOTIFIER_SLACK_TOKEN` | the Sustenaut bot's token |
 | `NOTIFIER_STORAGE_URL` | storage's address, for what has been posted and the call log |
 | `NOTIFIER_SITE` | where signals' pages are (optional; observability.sustenaut.eu) |
@@ -25,7 +25,8 @@ from typing import Any
 
 from notifier import routes as routing
 
-KEY = "NOTIFIER_BIGQUERY_KEY"
+# The variable that names Google's credential file (its path, never a value).
+GOOGLE_FILE = "NOTIFIER_GOOGLE_CREDENTIAL_FILE"
 SLACK = "NOTIFIER_SLACK_TOKEN"
 STORAGE = "NOTIFIER_STORAGE_URL"
 SITE = "NOTIFIER_SITE"
@@ -81,7 +82,7 @@ def run(when: str | None, routes: routing.Routes, transport: Any,  # pragma: no 
     from integrations.clients.storage import Storage  # noqa: PLC0415
     from observability import links  # noqa: PLC0415
     from observability.bigquery import Warehouse  # noqa: PLC0415
-    from observability.cli import key  # noqa: PLC0415
+    from observability.cli import credential  # noqa: PLC0415
 
     from notifier import notify, state  # noqa: PLC0415
 
@@ -92,9 +93,10 @@ def run(when: str | None, routes: routing.Routes, transport: Any,  # pragma: no 
     if not url or not slack_token:
         raise ValueError(f"set {STORAGE} and {SLACK}")
     try:
-        credentials = key(os.environ.get(KEY, ""))
-    except ValueError:
-        raise ValueError(f"{KEY} is not a service account's key") from None
+        credentials = credential(os.environ.get(GOOGLE_FILE, ""))
+    except ValueError as error:
+        # observability's words name its own variable: the notifier's is said instead.
+        raise ValueError(str(error).replace("OBSERVABILITY_GOOGLE_CREDENTIAL_FILE", GOOGLE_FILE)) from None
     token_file = None if storage_token else Path(TOKEN_FILE)
     transport = transport or Network()
     sink = call_log(url, transport, storage_token, token_file)

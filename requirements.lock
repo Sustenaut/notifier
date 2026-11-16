@@ -205,11 +205,11 @@ fastavro==1.13.1 \
     --hash=sha256:ffa147df1278b8a849586da1f2b520e856e78ea797edc4c974c8bb1e6b4bfd66 \
     --hash=sha256:ffa4b0b942e3aa7e66cc97a1862a2da6a3fce3dbcbd17a9b4be6ff1c33c93976
     # via integrations
-integrations @ https://github.com/Sustenaut/integrations/releases/download/v0.14.0/integrations-0.14.0-py3-none-any.whl \
-    --hash=sha256:f8855ac05878893d3174ee2d00167cc051b0949d3b03adb0e28ddbcd222b1547
+integrations @ https://github.com/Sustenaut/integrations/releases/download/v0.14.3/integrations-0.14.3-py3-none-any.whl \
+    --hash=sha256:22ed33a25c48a050642a5256a33f2ed86bff6c16298a83db1be6c81ab2147bc0
     # via observability
-observability @ https://github.com/Sustenaut/observability/releases/download/v0.1.0/observability-0.1.0-py3-none-any.whl \
-    --hash=sha256:726df1f0d67b203732a2e311c28a72cbca34921882e5d543b665ed0150445059
+observability @ https://github.com/Sustenaut/observability/releases/download/v0.3.0/observability-0.3.0-py3-none-any.whl \
+    --hash=sha256:b8d796e59daab1c9a61e6f7ce40100465bd05f21b68cdfba3c80191a837858bd
     # via -r requirements.in
 pycparser==3.12 ; implementation_name != 'PyPy' and platform_python_implementation != 'PyPy' \
     --hash=sha256:a076f3f489b39b43ed13563a1dafe42447445bec2e294154ec5c57fcdda4c85e \
