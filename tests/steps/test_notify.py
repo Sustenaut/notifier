@@ -189,8 +189,17 @@ def asked(world: dict, text: str) -> None:
     assert text in world["queries"][-1], world["queries"][-1]
 
 
-def test_refused_is_the_clients_refusal() -> None:
+@when("a message is posted to a Slack that is down")
+def post_to_down_slack(world: dict) -> None:
     """FakeSlackPost refuses the way the real client does, with the library's Refused."""
-    fake = FakeSlackPost(working=False)
-    with pytest.raises(Refused):
-        fake.post("C", "x")
+    try:
+        FakeSlackPost(working=False).post("C", "x")
+    except Exception as refusal:  # noqa: BLE001 - the step below names the type
+        world["refusal"] = refusal
+    else:
+        world["refusal"] = None
+
+
+@then("it is refused with the integrations library's Refused")
+def refused_by_library(world: dict) -> None:
+    assert isinstance(world["refusal"], Refused), world["refusal"]

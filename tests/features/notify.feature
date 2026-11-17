@@ -105,3 +105,7 @@ Feature: Posting each signal once when it opens and once when it ends
     And the signal "drops" "warning" for "example/app" from 10:21 to 10:25, its end read first
     When the notifier runs at 10:30
     Then "C-DEFAULT" gets ":large_orange_circle: *warning* · drops · `example/app` from 10:21 UTC to 10:25 UTC (4 min) (rule v1)"
+
+  Scenario: The fake Slack refuses as the real client does
+    When a message is posted to a Slack that is down
+    Then it is refused with the integrations library's Refused
