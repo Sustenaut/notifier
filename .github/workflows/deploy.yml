@@ -1,8 +1,8 @@
 # Builds the notifier's image once CI passes on a merge to main, and sends k8s/ to the shared k3s
-# server over SSH and the tailnet, with pubkit's k8s-deploy.yml (pubkit's README,
+# server over SSH and the tailnet, with pubrules's k8s-deploy.yml (pubrules's README,
 # "Deploying a service to k3s"), where the deploy key can only run sustenaut-deploy.
 #
-# Where signals go is the repository variable NOTIFIER_ROUTES, which pubkit.json
+# Where signals go is the repository variable NOTIFIER_ROUTES, which pubrules.json
 # declares and the owner's state repository keeps, so nothing here names a channel or
 # a consumer. It deploys only once DEPLOY_NOTIFIER is "on", which the deploy walk sets
 # once every need before it is ready.
@@ -21,7 +21,7 @@ permissions:
 
 jobs:
   deploy:
-    uses: Sustenaut/pubdeploy/.github/workflows/k8s-deploy.yml@205a99f6c023f1e7dc6156ef2a75389ea55312d0 # v0.4.2
+    uses: Sustenaut/pubdeploy/.github/workflows/k8s-deploy.yml@fc34f05c790732a1ea831d896e557e9f816cba50 # v0.5.0
     with:
       image: ghcr.io/sustenaut/notifier
       deploys: k8s notifier DEPLOY_NOTIFIER

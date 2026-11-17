@@ -63,7 +63,7 @@ Where each signal goes is the repository variable `NOTIFIER_ROUTES`, a JSON obje
   `info` signals such as `cold_start_share` aren't posted unless a route asks for them.
 - The bot must be in each channel it posts to; a direct message needs nothing more.
 
-Subjects name consumers, so the value isn't kept here: `pubkit.json`'s `variables` block
+Subjects name consumers, so the value isn't kept here: `pubrules.json`'s `variables` block
 declares the name, and the owner's state repository keeps the value and sets it
 (`pubfleet variables --apply`). `notifier routes` checks it and prints each route:
 
@@ -87,20 +87,20 @@ The pod reads storage with its projected service-account token,
 ## Deploying
 
 `.github/workflows/deploy.yml` builds the image (`Dockerfile`, from the hash-locked
-`requirements.lock`) on each merge to main and applies `k8s/` with pubkit's
+`requirements.lock`) on each merge to main and applies `k8s/` with pubrules's
 `k8s-deploy.yml`, once `DEPLOY_NOTIFIER` is `on`. The routes become the ConfigMap
 `notifier-settings`.
 
 What it needs elsewhere: shared-infra's `notifier-reader` account and `calls_notifier`
 dataset (`infra/notifier.tf`, `infra/call_log.tf`), storage's `notifier` and
-`calls-notifier` tenants, and its entries in other repositories' variables. pubkit.json's
-`deploy` block lists them with everything else it needs, and pubkit's deploy walk checks
+`calls-notifier` tenants, and its entries in other repositories' variables. pubrules.json's
+`deploy` block lists them with everything else it needs, and pubrules's deploy walk checks
 each and makes what it can. To take it live, or bring it back in step, from a checkout of
 this repository with Sustenaut/shared-infra checked out beside it, on a machine on the
 admin tailnet, signed in to `gh` and `gcloud`:
 
 ```sh
-./with-secrets ./pubdeploy walk --fulfil --server sustenaut --zones ../shared-infra/pubkit.json
+./with-secrets ./pubdeploy walk --fulfil --server sustenaut --zones ../shared-infra/pubrules.json
 ```
 
 It checks every need, prints the plan, and waits for a typed `yes`; then it makes each
