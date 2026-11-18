@@ -8,7 +8,6 @@ import json
 from datetime import datetime, timedelta, timezone
 
 import pytest
-from integrations.calls import Refused
 from integrations.clients.slack import FakeSlackPost
 from observability import links
 from pytest_bdd import given, parsers, scenarios, then, when
@@ -114,7 +113,7 @@ def remembers(world: dict, rule: str, subject: str, days: str, ended: str | None
 
 
 @when(parsers.parse("the notifier runs at {clock}"))
-def runs(world: dict, clock: str) -> None:
+def runs(ctx, world: dict, clock: str) -> None:
     def query(sql: str) -> list[dict]:
         world["queries"].append(sql)
         return list(world["rows"])
@@ -124,8 +123,8 @@ def runs(world: dict, clock: str) -> None:
 
     world["seen"] = len(world["slack"].posted)
     world["saves"] = world["store"].saves
-    world["outcome"] = notify.run(query, post, world["store"], world["routes"], at(clock),
-                                  lambda s: links.signal_url(s.rule_id, s.subject, s.started_at))
+    world["outcome"] = ctx.attempt(lambda: notify.run(query, post, world["store"], world["routes"], at(clock),
+                                                      lambda s: links.signal_url(s.rule_id, s.subject, s.started_at)))
 
 
 def new_posts(world: dict) -> list[tuple[str, str]]:
@@ -190,16 +189,15 @@ def asked(world: dict, text: str) -> None:
 
 
 @when("a message is posted to a Slack that is down")
-def post_to_down_slack(world: dict) -> None:
+def post_to_down_slack(ctx) -> None:
     """FakeSlackPost refuses the way the real client does, with the library's Refused."""
-    try:
-        FakeSlackPost(working=False).post("C", "x")
-    except Exception as refusal:  # noqa: BLE001 - the step below names the type
-        world["refusal"] = refusal
-    else:
-        world["refusal"] = None
+    ctx.attempt(lambda: FakeSlackPost(working=False).post("C", "x"))
 
 
-@then("it is refused with the integrations library's Refused")
-def refused_by_library(world: dict) -> None:
-    assert isinstance(world["refusal"], Refused), world["refusal"]
+@then(parsers.parse('the refusal is a "{kind}"'))
+def refusal_is(ctx, kind: str) -> None:
+    """The refusal is of the class named, or of one made from it, by its name or
+    its module's dotted name."""
+    assert ctx.refused is not None, f"it was not refused: the result is {ctx.result!r}"
+    kinds = type(ctx.refused.error).__mro__
+    assert any(kind in (k.__name__, f"{k.__module__}.{k.__qualname__}") for k in kinds), repr(ctx.refused.error)

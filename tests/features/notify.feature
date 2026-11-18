@@ -108,4 +108,5 @@ Feature: Posting each signal once when it opens and once when it ends
 
   Scenario: The fake Slack refuses as the real client does
     When a message is posted to a Slack that is down
-    Then it is refused with the integrations library's Refused
+    Then it is refused
+    And the refusal is a "integrations.calls.Refused"
