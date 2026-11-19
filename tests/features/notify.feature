@@ -106,6 +106,75 @@ Feature: Posting each signal once when it opens and once when it ends
     When the notifier runs at 10:30
     Then "C-DEFAULT" gets ":large_orange_circle: *warning* · drops · `example/app` from 10:21 UTC to 10:25 UTC (4 min) (rule v1)"
 
+  Scenario: Signals of one rule opening for one channel in one run are one post, each subject with its link
+    Given the notifier has run before
+    And the open signal "sender_silent" "critical" for "example/b" since 10:20
+    And the open signal "sender_silent" "critical" for "example/a" since 10:18
+    And the open signal "sender_silent" "critical" for "<!here>" since 10:22
+    When the notifier runs at 10:30
+    Then "C-PAGER" gets ":red_circle: *critical* · sender_silent · 3 subjects since 10:18 UTC (rule v1)"
+    And only one post is made
+    And the post says "• `example/a` <https://observability.sustenaut.eu/signals/sender_silent/20261101T101800Z/example/a|What's behind it>\n• `example/b` <https://observability.sustenaut.eu/signals/sender_silent/20261101T102000Z/example/b|What's behind it>"
+    And the post says "• `&lt;!here&gt;` <https://observability.sustenaut.eu/signals/sender_silent/20261101T102200Z/%3C%21here%3E|What's behind it>"
+    When the notifier runs at 10:32
+    Then nothing is posted
+
+  Scenario: Their ends, in one run, are one post too
+    Given the notifier has run before
+    And the open signal "sender_silent" "critical" for "example/a" since 10:18
+    And the open signal "sender_silent" "critical" for "example/b" since 10:20
+    When the notifier runs at 10:30
+    Then only one post is made
+    Given the signal "sender_silent" "critical" for "example/a" ends at 10:34
+    And the signal "sender_silent" "critical" for "example/b" ends at 10:34
+    When the notifier runs at 10:36
+    Then "C-PAGER" gets ":white_check_mark: ended · sender_silent · 2 subjects, the first since 10:18 UTC"
+    And only one post is made
+    And the post says "• `example/a` <https://observability.sustenaut.eu/signals/sender_silent/20261101T101800Z/example/a|What's behind it>"
+    When the notifier runs at 10:38
+    Then nothing is posted
+
+  Scenario: Signals that opened and ended between two runs are one post, as both, at the worst severity
+    Given the notifier has run before
+    And the signal "drops" "warning" for "example/app" from 10:21 to 10:25
+    And the signal "drops" "critical" for "example/web2" from 10:23 to 10:26
+    When the notifier runs at 10:30
+    Then "C-DEFAULT" gets ":red_circle: *critical* · drops · 2 subjects opened and ended since 10:21 UTC (rule v1)"
+    And only one post is made
+
+  Scenario: A grouped post names the first 10 subjects and counts the rest
+    Given the notifier has run before
+    And 12 open signals "drops" "warning" for "example/s" and a number, since 10:20
+    When the notifier runs at 10:30
+    Then "C-DEFAULT" gets ":large_orange_circle: *warning* · drops · 12 subjects since 10:20 UTC (rule v1)"
+    And only one post is made
+    And the post says "`example/s10`"
+    And the post does not say "`example/s11`"
+    And the post says "and 2 more"
+
+  Scenario: A grouped post Slack refuses is remembered for none of its signals, and all are tried again
+    Given the notifier has run before
+    And the open signal "drops" "warning" for "example/app" since 10:20
+    And the open signal "drops" "warning" for "example/web2" since 10:22
+    And Slack refuses posts
+    When the notifier runs at 10:30
+    Then nothing is posted
+    And the run failed for "drops 2 subjects"
+    Given Slack takes posts again
+    When the notifier runs at 10:32
+    Then "C-DEFAULT" gets ":large_orange_circle: *warning* · drops · 2 subjects since 10:20 UTC (rule v1)"
+    And only one post is made
+
+  Scenario: Signals of one rule for different channels, or of different kinds, are posted on their own, as before
+    Given the notifier has run before
+    And the open signal "sender_silent" "critical" for "example/web" since 10:20
+    And the open signal "sender_silent" "critical" for "example/app" since 10:20
+    And the signal "sender_silent" "critical" for "example/old" from 10:10 to 10:24
+    When the notifier runs at 10:30
+    Then "C-WEB" gets ":red_circle: *critical* · sender_silent · `example/web` since 10:20 UTC (rule v1)"
+    And "C-PAGER" gets ":red_circle: *critical* · sender_silent · `example/app` since 10:20 UTC (rule v1)"
+    And "C-PAGER" gets ":red_circle: *critical* · sender_silent · `example/old` from 10:10 UTC to 10:24 UTC (14 min) (rule v1)"
+
   Scenario: The fake Slack refuses as the real client does
     When a message is posted to a Slack that is down
     Then it is refused
