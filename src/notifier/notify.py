@@ -6,6 +6,11 @@ A signal is written twice, when it starts and when it ends, both with the same
 opens and again when it ends; one that opened and ended between two runs is posted
 once, as both. The first run, with nothing remembered, posts none of what it finds:
 it remembers it all, and says it has started.
+
+Signals of one rule going to one channel as the same kind of post (open, ended, or
+both) in one run are one post when there are two or more: one fault seen from many
+subjects is one message, not a flood. A post that fails is remembered for none of
+its signals, so the next run tries them all again.
 """
 
 from __future__ import annotations
@@ -98,6 +103,7 @@ def run(query: Callable[[str], list[dict[str, Any]]], post: Callable[[str, str],
         out.saved = True
         return out
     changed = False
+    groups: dict[tuple[str, str, str], list[Signal]] = {}  # rule, channel, what: in the order found
     for signal in found:
         opened, ended = posted.has(signal.key, "open"), posted.has(signal.key, "ended")
         if signal.ended_at is None and opened or signal.ended_at is not None and ended:
@@ -105,18 +111,27 @@ def run(query: Callable[[str], list[dict[str, Any]]], post: Callable[[str, str],
         what = "open" if signal.ended_at is None else ("ended" if opened else "both")
         channel = routes.channel_for(signal.rule_id, signal.subject, signal.severity)
         if channel is not None:
-            text = messages.text(signal, what, link(signal))
-            try:
-                post(channel, text)
-            except Exception as error:  # noqa: BLE001 - the integrations client's refusal or failure
-                # Not remembered, so the next run tries it again.
-                out.failed.append(f"{signal.rule_id} {signal.subject}: {error}")
-                continue
-            out.posted.append((channel, text))
+            groups.setdefault((signal.rule_id, channel, what), []).append(signal)
+            continue
         # A signal no route posts is remembered too, so a route added later doesn't
         # post what happened before it.
-        for done in (("open", "ended") if what == "both" else (what,)):
-            posted.mark(signal.key, done, now)
+        mark(posted, signal, what, now)
+        changed = True
+    for (rule_id, channel, what), group in groups.items():
+        if len(group) == 1:
+            text = messages.text(group[0], what, link(group[0]))
+        else:
+            text = messages.grouped(group, what, [link(signal) for signal in group])
+        try:
+            post(channel, text)
+        except Exception as error:  # noqa: BLE001 - the integrations client's refusal or failure
+            # Not remembered, so the next run tries them all again.
+            named = group[0].subject if len(group) == 1 else f"{len(group)} subjects"
+            out.failed.append(f"{rule_id} {named}: {error}")
+            continue
+        out.posted.append((channel, text))
+        for signal in group:
+            mark(posted, signal, what, now)
         changed = True
     before = len(posted.signals)
     posted.prune(now)
@@ -124,3 +139,9 @@ def run(query: Callable[[str], list[dict[str, Any]]], post: Callable[[str, str],
         store.save(posted, read)
         out.saved = True
     return out
+
+
+def mark(posted: Posted, signal: Signal, what: str, now: datetime) -> None:
+    """Remember what was posted for the signal: both its start and its end, for "both"."""
+    for done in (("open", "ended") if what == "both" else (what,)):
+        posted.mark(signal.key, done, now)

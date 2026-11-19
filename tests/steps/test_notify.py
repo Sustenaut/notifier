@@ -84,6 +84,11 @@ def ended_signal(world: dict, rule: str, severity: str, subject: str, start: str
     world["rows"] += rows[::-1] if first else rows
 
 
+@given(parsers.parse('{count:d} open signals "{rule}" "{severity}" for "{prefix}" and a number, since {clock}'))
+def many_open(world: dict, count: int, rule: str, severity: str, prefix: str, clock: str) -> None:
+    world["rows"] += [row(rule, severity, f"{prefix}{n:02d}", clock) for n in range(1, count + 1)]
+
+
 @given(parsers.parse('the signal "{rule}" "{severity}" for "{subject}" ends at {clock}'))
 def ends(world: dict, rule: str, severity: str, subject: str, clock: str) -> None:
     started = next(r for r in world["rows"] if r["rule_id"] == rule and r["subject"] == subject)["started_at"]
@@ -154,7 +159,12 @@ def one(world: dict) -> None:
 
 @then(parsers.parse('the post says "{text}"'))
 def says(world: dict, text: str) -> None:
-    assert text in new_posts(world)[-1][1], new_posts(world)
+    assert text.replace("\\n", "\n") in new_posts(world)[-1][1], new_posts(world)
+
+
+@then(parsers.parse('the post does not say "{text}"'))
+def does_not_say(world: dict, text: str) -> None:
+    assert text not in new_posts(world)[-1][1], new_posts(world)
 
 
 @then(parsers.parse('the post links to "{url}"'))

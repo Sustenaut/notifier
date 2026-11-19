@@ -21,13 +21,21 @@ Every two minutes a CronJob on the shared k3s server runs `notifier run`:
    posted once, as both. Each post links to
    `https://observability.sustenaut.eu/signals/<rule_id>/<started>/<subject>`, which
    `observability.links.signal_url` makes, so both repositories agree on it.
+
+   Signals of one rule that would go to one channel as the same kind of post (opened,
+   ended, or both) in one run are **one post** when there are two or more, so one fault
+   seen from many subjects is one message. It gives the mark, the severity and the rule,
+   the count ("8 subjects"), the earliest start, and each subject in backticks with its
+   own "What's behind it" link: the first 10, then "and N more". A single signal posts
+   on its own, as above.
 3. **It remembers** what it posted: a small JSON file in storage's private `notifier`
    tenant, named by the head `posted`. A run that posts something uploads a new file
    and moves the head to it with `If-Match` on the hash it read, so two runs can't
    both win. Signals that ended are forgotten after 7 days, and any after 30.
 
 A post Slack refuses isn't remembered, so the next run tries it again, and the run
-exits 1. Posting comes before remembering, so a run that dies between the two posts
+exits 1. A grouped post that fails is remembered for none of its signals, so the next
+run tries them all. Posting comes before remembering, so a run that dies between the two posts
 again next time: a signal may be posted twice, never left out.
 
 **The first run**, with nothing remembered, posts nothing it finds. It remembers it all
@@ -148,7 +156,8 @@ buffer, as `k8s:notifier/app`. So it needs no other grant, key or dataset.
 - **The steady fake sender, `e2e`:** the CronJob `fake-sender` (`k8s/fake-sender.yaml`)
   reports as it every two minutes. Observability expects it always on
   (`OBSERVABILITY_SENDERS`), so it is a healthy sender until something pauses it.
-- **The silence test**, `./with-secrets k8s/admin/e2e.sh`, about 20 minutes:
+- **The silence test**, `./with-secrets k8s/admin/e2e.sh`, about 30 minutes, since
+  `sender_silent` waits 10 minutes of silence before it opens:
   1. It waits, up to 10 minutes, until the route for `notifier/e2e` is in the settings
      the notifier runs with and the fake sender is deployed and reporting, so it can
      run straight after a change to either merges. It says what is missing, and what

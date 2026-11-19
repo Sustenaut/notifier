@@ -8,8 +8,8 @@
 # The silence test pauses the steady fake sender, e2e (k8s/fake-sender.yaml), which
 # observability expects always on. It checks that the notifier posts sender_silent's
 # opening for notifier/e2e once, with its page's link; then resumes the sender and
-# checks that the end is posted once. It resumes the sender however it stops. About 20
-# minutes: the rule waits 6 minutes of silence, and the evaluator, the ingest pod and the
+# checks that the end is posted once. It resumes the sender however it stops. About 30
+# minutes: the rule waits 10 minutes of silence, and the evaluator, the ingest pod and the
 # notifier each run every two.
 #
 # Load runs a one-off Job of N fake senders (e2e-a, e2e-b, ...), each with --calls
@@ -150,15 +150,15 @@ wait_for() {
 
 echo "1/4 pausing the fake sender e2e"
 k "patch cronjob fake-sender -p '{\"spec\":{\"suspend\":true}}'" > /dev/null
-echo "2/4 waiting for the notifier to post that $subject went silent (about 10 minutes)"
-wait_for "since" 25
+echo "2/4 waiting for the notifier to post that $subject went silent (about 16 minutes)"
+wait_for "since" 30
 opening=$(cut -f2- "$seen" | grep -- "since" | head -1)
 echo "  $opening"
 grep -q "https://observability.sustenaut.eu/signals/sender_silent/" <<<"$opening" \
   || { echo "e2e: the opening has no link to the signal's page" >&2; exit 1; }
-echo "3/4 resuming the fake sender, and waiting for the end (about 6 minutes)"
+echo "3/4 resuming the fake sender, and waiting for the end (about 8 minutes)"
 resume
-wait_for "ended" 20
+wait_for "ended" 25
 echo "  $(cut -f2- "$seen" | grep -- "ended" | head -1)"
 echo "4/4 two more runs, to see that neither is posted again"
 for _ in 1 2 3 4 5 6 7 8 9 10; do collect; sleep 30; done
