@@ -3,8 +3,8 @@ storage a fake transport that takes every file."""
 
 from __future__ import annotations
 
-import io
-from contextlib import redirect_stderr, redirect_stdout
+import shlex
+import sys
 from datetime import datetime, timezone
 
 import pytest
@@ -41,30 +41,46 @@ class TakesEverything:
 
 @pytest.fixture
 def world() -> dict:
-    return {}
+    return {"transport": TakesEverything()}
 
 
-@then(parsers.parse('{count:d} senders are named "{first}" to "{last}"'))
-def named(count: int, first: str, last: str) -> None:
-    got = fake.names(count)
-    assert (len(got), got[0], got[-1], len(set(got))) == (count, first, last, count)
+@when(parsers.parse("{count:d} fake senders are named"))
+def named(ctx, count: int) -> None:
+    ctx.attempt(lambda: fake.names(count))
 
 
 @when(parsers.parse("{senders:d} fake senders report {calls:d} calls each for {minutes:d} minutes"))
-def report(world: dict, senders: int, calls: int, minutes: int) -> None:
+def report(ctx, world: dict, senders: int, calls: int, minutes: int) -> None:
     world["sinks"], world["slept"] = {}, []
 
     def make(name: str) -> MemorySink:
         world["sinks"][name] = MemorySink()
         return world["sinks"][name]
 
-    world["lines"] = fake.run(make, "notifier", senders, calls, minutes,
-                              clock=lambda: datetime(2026, 11, 8, 5, 0, tzinfo=timezone.utc),
-                              sleep=world["slept"].append)
+    ctx.attempt(lambda: fake.run(make, "notifier", senders, calls, minutes,
+                                 clock=lambda: datetime(2026, 11, 8, 5, 0, tzinfo=timezone.utc),
+                                 sleep=world["slept"].append))
+
+
+@when(parsers.parse('the fake sender is run with "{args}"'))
+def run_fake(ctx, world: dict, args: str) -> None:
+    argv = ["fake-sender", *shlex.split(args)]
+    ctx.attempt(lambda: sys.exit(cli.main(argv, transport=world["transport"], storage_token=lambda: "t")))
+
+
+@when(parsers.parse('the link is read from "{text}"'))
+def link(ctx, text: str) -> None:
+    ctx.attempt(lambda: cli.link_of(text.replace("\\n", "\n")))
+
+
+@then("no item of the result is there twice")
+def no_item_twice(ctx) -> None:
+    assert len(ctx.result) == len(set(ctx.result)), ctx.result
 
 
 @then(parsers.parse('each sender wrote {calls:d} calls to "{plugin}" and reported {times:d} times'))
 def wrote(world: dict, calls: int, plugin: str, times: int) -> None:
+    assert world["sinks"]
     for sink in world["sinks"].values():
         assert len(sink.calls) == calls and {c.plugin for c in sink.calls} <= {plugin} and sink.flushes == times
         assert all(c.repo == "notifier" and c.outcome == "ok" and c.at == "2026-11-08T05:00:00Z" for c in sink.calls)
@@ -75,54 +91,7 @@ def waited(world: dict, seconds: int) -> None:
     assert world["slept"] == ([seconds] if seconds else [])
 
 
-@then(parsers.parse('it says "{line}" twice'))
-def says_twice(world: dict, line: str) -> None:
-    assert world["lines"] == [line, line]
-
-
-def run_command(world: dict, args: list[str], storage: bool) -> None:
-    world["transport"] = TakesEverything()
-    out, err = io.StringIO(), io.StringIO()
-    env = {"NOTIFIER_STORAGE_URL": "https://storage.test"} if storage else {}
-    with pytest.MonkeyPatch.context() as patch, redirect_stdout(out), redirect_stderr(err):
-        patch.delenv("NOTIFIER_STORAGE_URL", raising=False)
-        for k, v in env.items():
-            patch.setenv(k, v)
-        world["code"] = cli.main(["fake-sender", *args], transport=world["transport"], storage_token=lambda: "t")
-    world["out"], world["err"] = out.getvalue(), err.getvalue()
-
-
-@when(parsers.re(r'I run the fake sender with (?P<args>(?:"[^"]*" ?)+)$'))
-def run_fake(world: dict, args: str) -> None:
-    run_command(world, args.strip().strip('"').split('" "'), True)
-
-
-@when(parsers.re(r'I run the fake sender with (?P<args>(?:"[^"]*" ?)+), (?P<storage>with|without) storage$'))
-def run_fake_storage(world: dict, args: str, storage: str) -> None:
-    run_command(world, args.strip().strip('"').split('" "'), storage == "with")
-
-
-@then(parsers.parse('it succeeds with "{line}"'))
-def succeeds(world: dict, line: str) -> None:
-    assert world["code"] == 0 and world["out"].splitlines() == [line], (world["out"], world["err"])
-
-
 @then(parsers.parse('storage got {count:d} files under "{prefix}"'))
 def stored(world: dict, count: int, prefix: str) -> None:
     puts = [r.url for r in world["transport"].sent if r.method == "PUT"]
     assert len(puts) == count and all(prefix in url for url in puts), puts
-
-
-@then(parsers.parse('it fails with {code:d}, saying "{message}"'))
-def fails(world: dict, code: int, message: str) -> None:
-    assert world["code"] == code and message in world["err"], world["err"]
-
-
-@then(parsers.parse('the link of "{text}" is "{link}"'))
-def link(text: str, link: str) -> None:
-    assert cli.link_of(text.replace("\\n", "\n").replace("\\|", "|")) == link
-
-
-@then(parsers.re(r'the link of "(?P<text>[^"]*)" is ""$'))
-def no_link(text: str) -> None:
-    assert cli.link_of(text.replace("\\n", "\n")) == ""
